@@ -3,6 +3,8 @@
 
 # Fundamentos de Bases de Datos
 
+[Postgresql - notas - comandos](/src/Postgresql/Transporte)
+
 ## Indice
 
 - [Fundamentos de Bases de Datos](#fundamentos-de-bases-de-datos)

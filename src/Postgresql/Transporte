@@ -1,0 +1,332 @@
+/* Pasajero */
+CREATE TABLE public."Pasajero"
+(
+    id serial,
+    nombre character varying(150) NOT NULL,
+    direccion_residencia character varying,
+    fecha_nacimiento date NOT NULL,
+    CONSTRAINT pasajero_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE IF EXISTS public."Pasajero"
+    OWNER to postgres;
+	
+/* Estación */
+CREATE TABLE public."Estacion" (
+	id serial,
+	nombre character varying(150) NOT NULL,
+	direccion character varying NOT null,
+	fecha date NOT NULL,
+	CONSTRAINT estacion_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE IF EXISTS public."Estacion" OWNER to postgres;
+
+/* Tren */
+CREATE TABLE public."Tren"(
+	id serial,
+	modelo character varying(150) NOT NULL,
+	capacidad integer,
+	CONSTRAINT tren_pkey PRIMARY KEY (id)
+);
+
+ALTER TABLE IF EXISTS public."Tren" OWNER to postgres;
+
+/* Trayecto */
+CREATE TABLE public."Trayecto"(
+	id serial,
+	id_estacion integer,
+	id_tren integer,
+	nombre character varying(150),
+	CONSTRAINT trayecto_pkey PRIMARY KEY(id)
+);
+
+ALTER TABLE IF EXISTS public."Trayecto" OWNER to postgres;
+
+/* Tren */
+CREATE TABLE public."Tren"(
+	id serial,
+	modelo character varying NOT NULL,
+	capacidad integer NOT NULL,
+	CONSTRAINT tren_pkey PRIMARY KEY(id)
+);
+
+ALTER TABLE IF EXISTS public."Tren" OWNER to postgres;
+
+/* Viaje */
+CREATE TABLE public."Viaje"(
+	id serial,
+	id_pasajero integer NOT NULL,
+	id_trayecto integer NOT NULL,
+	inicio date,
+	fin date,
+	CONSTRAINT viaje_pkey PRIMARY KEY(id)
+);
+
+ALTER TABLE IF EXISTS public."Viaje" OWNER to postgres;
+
+/* Bitacora de viajes */
+CREATE TABLE public."Bitacora_viaje"(
+	id serial,
+	id_viaje integer,
+	fecha date
+) PARTITION BY RANGE(fecha);
+
+ALTER TABLE IF EXISTS public."Bitacora_viaje" OWNER to postgres;
+
+CREATE TABLE public."Bitacora_viaje201001" PARTITION OF public."Bitacora_viaje"
+FOR VALUES FROM ('2010-01-01') TO ('2019-01-01');
+
+
+
+/* Crear un rol de solo consultas */
+CREATE ROLE soporte_consulta WITH
+	LOGIN
+	NOSUPERUSER
+	NOCREATEDB
+	NOCREATEROLE
+	INHERIT
+	NOREPLICATION
+	CONNECTION LIMIT -1
+	PASSWORD '123456';
+COMMENT ON ROLE soporte_consulta IS 'Solo puede consultar.';
+
+GRANT INSERT, UPDATE, SELECT ON TABLE public."Estacion" TO soporte_consulta;
+
+GRANT INSERT, UPDATE, SELECT ON TABLE public."Pasajero" TO soporte_consulta;
+
+GRANT INSERT, UPDATE, SELECT ON TABLE public."Trayecto" TO soporte_consulta;
+
+GRANT INSERT, UPDATE, SELECT ON TABLE public."Tren" TO soporte_consulta;
+
+GRANT INSERT, UPDATE, SELECT ON TABLE public."Viaje" TO soporte_consulta;
+
+ALTER TABLE public."Trayecto" ADD CONSTRAINT trayecto_tren_fkey FOREIGN KEY (id_tren)
+	REFERENCES public."Tren" (id) MATCH SIMPLE
+	ON UPDATE CASCADE
+	ON DELETE CASCADE;
+
+
+
+
+/* Inserción de datos */
+INSERT INTO public."Pasajero"(nombre, direccion_residencia, fecha_nacimiento) VALUES('Leandro', 'Av. Ejemplo 123', '2022-01-12');
+
+SELECT current_date;
+
+SELECT * FROM public."Pasajero";
+
+SELECT * FROM public."Trayecto";
+
+ALTER TABLE public."trayecto" RENAME TO "Trayecto";
+
+
+
+/* Inserción bitácora viajes */
+
+INSERT INTO public."Bitacora_viaje" (id_viaje, fecha) VALUES(1, '2010-01-11');
+
+SELECT * FROM public."Bitacora_viaje";
+
+
+DROP TABLE public."Bitacora_viaje";
+
+
+/* JOIN */
+
+SELECT * FROM public."Pasajero" JOIN public."Viaje" ON (public."Viaje".id_pasajero = public."Pasajero".id) 
+ORDER BY public."Pasajero".id ASC; 
+
+SELECT * FROM public."Pasajero" LEFT JOIN public."Viaje" ON (public."Viaje".id_pasajero = public."Pasajero".id)
+WHERE public."Viaje".id IS NULL;
+
+/* Funciones */
+
+INSERT INTO public."Estacion"(
+	id, nombre, direccion)
+	VALUES (2, 'Uama', 'Dire') ON CONFLICT(id) DO UPDATE SET nombre = 'Uama', direccion = 'Dire';
+	
+INSERT INTO public."Estacion"(
+	nombre, direccion)
+	VALUES ('Uama', 'Dire') RETURNING *;
+	
+SELECT nombre FROM public."Pasajero" WHERE nombre ILIKE 'b%';
+
+SELECT * FROM public."Tren" WHERE modelo IS NOT NULL;
+
+
+SELECT id, COALESCE(nombre, 'No aplica') nombre, direccion_residencia, fecha_nacimiento
+	FROM public."Pasajero" WHERE id=2;
+	
+SELECT NULLIF(0,0);
+
+
+SELECT GREATEST(0,1,2,3,4,4,56,6);
+
+SELECT LEAST(0,1,2,3,4,4,56,6);
+
+SELECT id, nombre, direccion_residencia, fecha_nacimiento,
+	CASE 
+	WHEN fecha_nacimiento > '2015-1-1' THEN
+	'Niño'
+	ELSE
+	'Mayor'
+	END
+	FROM public."Pasajero";
+
+
+SELECT * FROM rango_view;
+
+
+SELECT * FROM despues_noche_mview;
+REFRESH MATERIALIZED VIEW despues_noche_mview;
+
+/* Lenguaje procedural */
+DO $$
+	DECLARE
+		rec record;
+		contador integer := 0;
+	BEGIN
+		FOR rec IN SELECT * FROM public."Pasajero" LOOP
+			RAISE NOTICE 'Un pasajero se llama %', rec.nombre;
+			contador := contador + 1;
+		END LOOP;
+		RAISE NOTICE 'Conteo es %', contador;
+	END
+$$
+
+CREATE FUNCTION importantePL() RETURNS void AS
+$$
+	DECLARE
+		rec record;
+		contador integer := 0;
+	BEGIN
+		FOR rec IN SELECT * FROM public."Pasajero" LOOP
+			RAISE NOTICE 'Un pasajero se llama %', rec.nombre;
+			contador := contador + 1;
+		END LOOP;
+		RAISE NOTICE 'Conteo es %', contador;
+	END
+$$
+LANGUAGE PLPGSQL;
+
+SELECT importantePL();
+
+DROP FUNCTION importantePL();
+
+CREATE FUNCTION importantePL() RETURNS integer AS
+$$
+	DECLARE
+		rec record;
+		contador integer := 0;
+	BEGIN
+		FOR rec IN SELECT * FROM public."Pasajero" LOOP
+			RAISE NOTICE 'Un pasajero se llama %', rec.nombre;
+			contador := contador + 1;
+		END LOOP;
+		RAISE NOTICE 'Conteo es %', contador;
+		RETURN contador;
+	END
+$$
+LANGUAGE PLPGSQL;
+
+SELECT importante_PL();
+
+-- FUNCTION: public.importante_PL()
+
+-- DROP FUNCTION IF EXISTS public."importante_PL"();
+
+CREATE OR REPLACE FUNCTION public."importante_PL"(
+	)
+    RETURNS TRIGGER
+    LANGUAGE 'plpgsql'
+AS $BODY$
+	
+    DECLARE
+		rec record;
+		contador integer := 0;
+	BEGIN
+		FOR rec IN SELECT * FROM public."Pasajero" LOOP
+			contador := contador + 1;
+		END LOOP; 
+		INSERT INTO public."Conteo_Pasajeros" (total, tiempo)
+		VALUES (contador, now());
+	END
+    
+$BODY$;
+
+ALTER FUNCTION public."importante_PL"()
+    OWNER TO postgres;
+
+
+
+CREATE TRIGGER mitrigger
+AFTER INSERT
+ON public."Pasajero"
+FOR EACH ROW
+EXECUTE PROCEDURE public."importante_PL"();
+
+
+CREATE TRIGGER triggerBorrar
+AFTER DELETE
+ON public."Pasajero"
+FOR EACH ROW
+EXECUTE PROCEDURE public."importante_PL"();
+
+
+-- Db link
+CREATE EXTENSION dblink;
+
+
+SELECT * FROM
+dblink('dbname = "Remota" port=5432 host=127.0.0.1 user=sporte_consulta password="Universidad11201911"',
+	  	'SELECT id, fecha FROM public."Vip"'
+	  ) AS datos_remotos (id integer, fecha date) USING(id);
+	  
+
+
+-- Transacciones
+
+BEGIN;
+
+INSERT INTO public."Tren"(
+	 modelo, capacidad)
+	VALUES ( 'Estacion transacción', 123456);
+	
+INSERT INTO public."Estacion"(
+	 nombre, direccion, fecha)
+	VALUES ( 'nombre transsaccin', 'dsada', '2010-01-01');
+
+--ROLLBACK;
+
+COMMIT;
+
+SELECT version();
+
+
+-- Librerias
+CREATE EXTENSION fuzzystrmatch;
+
+SELECT levenshtein('oswaldo', 'osvaldo');
+
+SELECT difference('beard', 'bird');
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
